@@ -181,20 +181,23 @@ void testFileIO(fs::FS &fs, const char * path){
     file.close();
 }
 
-void writeFile(fs::FS &fs, const char * path, uint8_t * data, size_t len){
+int writeFile(fs::FS &fs, const char * path, uint8_t * data, size_t len){
     Serial.printf("Writing file: %s\n", path);
 
     File file = fs.open(path, FILE_WRITE);
     if(!file){
         Serial.println("Failed to open file for writing");
-        return;
+        return -1;
     }
+    int stat = -1;
     if(file.write(data, len) == len){
         Serial.println("File written");
+        stat = 0;
     } else {
         Serial.println("Write failed");
     }
     file.close();
+    return stat;
 }
 
 int setup_sdcard() {
@@ -221,6 +224,7 @@ int setup_sdcard() {
   }
 
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+  Serial.println("Setup SD Card Success!");
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
   Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
   Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
@@ -238,7 +242,7 @@ int setup_sdcard() {
   // renameFile(SD, "/hello.txt", "/foo.txt");
   // readFile(SD, "/foo.txt");
   // testFileIO(SD, "/test.txt");
-  
+  is_sd_card_ready = true;
   return 0;
 }
 
@@ -261,11 +265,9 @@ int setup_wifi() {
   while (WiFi.status() != WL_CONNECTED) {
     return -1;
   }
-  Serial.println("");
-  Serial.println("WiFi connected");
-
-  Serial.print("IP: ");
+  Serial.print("Setup Wifi Success! Wifi connected with IP: ");
   Serial.println(WiFi.localIP());
+  is_wifi_ready = true;
   return 0;
 }
 
@@ -344,7 +346,7 @@ int setup_camera() {
   }
 
   Serial.println("Setup Camera Success!");
-
+  is_camera_ready = true;
   return 0;
 }
 
@@ -361,7 +363,7 @@ int take_picture() {
       struct tm timeinfo;
       if (getLocalTime(&timeinfo)) {
         sprintf(filename, "/image_%04d%02d%02d_%02d%02d%02d.jpg", 
-                timeinfo.tm_year + 1990,
+                timeinfo.tm_year + 1900,
                 timeinfo.tm_mon + 1,
                 timeinfo.tm_mday,
                 timeinfo.tm_hour,
@@ -369,24 +371,28 @@ int take_picture() {
                 timeinfo.tm_sec);
       }
     } else {
-      sprintf(filename, "/image%d.jpg", image_counter);
+      sprintf(filename, "/image_%06d.jpg", image_counter);
     }
     
     // Save photo to file
     size_t out_len = 0;
     uint8_t* out_buf = NULL;
-    esp_err_t ret = frame2jpg(fb, 12, &out_buf, &out_len);
+    int jpeg_quality = 30;
+    esp_err_t ret = frame2jpg(fb, jpeg_quality, &out_buf, &out_len);
+    int stat = -1;
     if (ret == false) {
-      Serial.printf("JPEG conversion failed");
-      return -1;
+      Serial.println("JPEG conversion failed");
     } else {
       // Save photo to file
-      writeFile(SD, filename, out_buf, out_len);
-      Serial.printf("Saved picture: %s\n", filename);
-      image_counter++;
+      if (writeFile(SD, filename, out_buf, out_len) >= 0) {
+        Serial.printf("Saved picture: %s\n", filename);
+        image_counter++;
+      }
       free(out_buf);
+      stat = 0;
     }
-    return 0;
+    esp_camera_fb_return(fb);
+    return stat;
   }
 
   return -1;
@@ -405,16 +411,14 @@ int setup_time() {
     Serial.println("Failed to obtain time!");
     return -1;
   }
-  char current_time_string[64];
-  sprintf(current_time_string, "current: %04d%02d%02d_%02d%02d%02d", 
-                timeinfo.tm_year + 1990,
+  Serial.printf("current: %04d%02d%02d_%02d%02d%02d", 
+                timeinfo.tm_year + 1900,
                 timeinfo.tm_mon + 1,
                 timeinfo.tm_mday,
                 timeinfo.tm_hour,
                 timeinfo.tm_min,
                 timeinfo.tm_sec);
-  Serial.println(current_time_string);
-
+  is_global_time_ready = true;
   return 0;
 }
 
@@ -435,18 +439,16 @@ void setup() {
     delay(1000);
   }
 
-  is_sd_card_ready = true;
-
   // TEST WIFI
   while (setup_wifi() < 0) {
     Serial.println("Retry Setup WIFI in 5 second!");
     delay(5000);
   }
-  is_wifi_ready = true;
 
   // TIME
-  if (setup_time() > 0) {
-    is_global_time_ready = true;
+  if (setup_time() < 0) {
+    Serial.println("Setup Global Time Failed, use image_counter!");
+    delay(5000);
   }
   
   // TEST CAMERA
@@ -454,12 +456,11 @@ void setup() {
     Serial.println("Retry Setup CAMERA in 1 second!");
     delay(1000);
   }
-  is_camera_ready = true;
 }
 
 void loop() {
-  if (take_picture() > 0) {
+  if (take_picture() >= 0) {
     flash_led();
   }
-  delay(5000);
+  delay(10000);
 }
