@@ -250,10 +250,12 @@ int setup_sdcard() {
 // LED
 
 void flash_led() {
-  digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
-  delay(500);                      // wait for a second
-  digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
-  delay(500); 
+  for (int i = 0; i < 10; i++) {
+    digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
+    delay(50);                      // wait for a second
+    digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
+    delay(50); 
+  }
 }
 
 // WIFI
@@ -404,8 +406,10 @@ int setup_time() {
   const char* net_server = "pool.ntp.org";
   const long offset_sec = 0;
   const int day_light_offset_sec = 3600;
+  const char *tz = "CST-8";
 
   configTime(offset_sec, day_light_offset_sec, net_server);
+  configTzTime(tz, net_server);
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
     Serial.println("Failed to obtain time!");
