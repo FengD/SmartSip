@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include <time.h>
+
 #include "esp_camera.h"
 
 #include "FS.h"
@@ -251,9 +252,9 @@ int setup_sdcard() {
 
 void flash_led() {
   for (int i = 0; i < 5; i++) {
-    digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
-    delay(200);                      // wait for a second
-    digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(200);
+    digitalWrite(LED_BUILTIN, HIGH);
     delay(200); 
   }
 }
@@ -374,6 +375,7 @@ int take_picture() {
       }
     } else {
       sprintf(filename, "/image_%06d.jpg", image_counter);
+      image_counter++;
     }
     
     // Save photo to file
@@ -388,7 +390,6 @@ int take_picture() {
       // Save photo to file
       if (writeFile(SD, filename, out_buf, out_len) >= 0) {
         Serial.printf("Saved picture: %s\n", filename);
-        image_counter++;
       }
       free(out_buf);
       stat = 0;
