@@ -1,8 +1,6 @@
 #include <WiFi.h>
 #include <time.h>
-
 #include "esp_camera.h"
-
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
@@ -247,11 +245,9 @@ int setup_sdcard() {
   return 0;
 }
 
-
 // LED
-
 void flash_led() {
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 2; i++) {
     digitalWrite(LED_BUILTIN, LOW);
     delay(200);
     digitalWrite(LED_BUILTIN, HIGH);
@@ -260,18 +256,18 @@ void flash_led() {
 }
 
 // WIFI
-int setup_wifi() {
+void setup_wifi() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(SSID, PWD);
   WiFi.setSleep(false);
 
   while (WiFi.status() != WL_CONNECTED) {
-    return -1;
+    Serial.println("Loading WIFI not ready!");
+    delay(200);
   }
   Serial.print("Setup Wifi Success! Wifi connected with IP: ");
   Serial.println(WiFi.localIP());
   is_wifi_ready = true;
-  return 0;
 }
 
 // camera
@@ -306,26 +302,6 @@ int setup_camera() {
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 1;
   config.fb_count = 2;
-  
-  // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
-  //                      for larger pre-allocated frame buffer.
-//   if(config.pixel_format == PIXFORMAT_JPEG){
-//     if(psramFound()){
-//       config.jpeg_quality = 10;
-//       config.fb_count = 2;
-//       config.grab_mode = CAMERA_GRAB_LATEST;
-//     } else {
-//       // Limit the frame size when PSRAM is not available
-//       config.frame_size = FRAMESIZE_SVGA;
-//       config.fb_location = CAMERA_FB_IN_DRAM;
-//     }
-//   } else {
-//     // Best option for face detection/recognition
-//     config.frame_size = FRAMESIZE_240X240;
-// #if CONFIG_IDF_TARGET_ESP32S3
-//     config.fb_count = 2;
-// #endif
-//   }
 
   // camera init
   esp_err_t err = esp_camera_init(&config);
@@ -387,7 +363,6 @@ int take_picture() {
 }
 
 // TIME
-
 int setup_time() {
   const char* net_server = "pool.ntp.org";
   const long offset_sec = 0;
@@ -421,7 +396,6 @@ void setup() {
 
   // TEST LED
   pinMode(LED_BUILTIN, OUTPUT);
-  flash_led();
 
   // TEST SD Card
   while (setup_sdcard() < 0) {
@@ -430,15 +404,12 @@ void setup() {
   }
 
   // TEST WIFI
-  while (setup_wifi() < 0) {
-    Serial.println("Retry Setup WIFI in 1 second!");
-    delay(1000);
-  }
+  setup_wifi();
 
   // TIME
   if (setup_time() < 0) {
     Serial.println("Setup Global Time Failed, use image_counter!");
-    delay(5000);
+    delay(1000);
   }
   
   // TEST CAMERA
@@ -452,5 +423,5 @@ void loop() {
   if (take_picture() >= 0) {
     flash_led();
   }
-  delay(5000);
+  delay(3000);
 }
