@@ -1,23 +1,30 @@
 #include <WiFi.h>
 #include <time.h>
-#include "esp_camera.h"
-#include "FS.h"
-#include "SD.h"
-#include "SPI.h"
+#include <HTTPClient.h>
+#include <mbedtls/md.h>
+#include <mbedtls/base64.h>
+#include <FS.h>
+#include <SD.h>
+#include <SPI.h>
+#include <esp_camera.h>
 
 // Select camera model
-#define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM
+#define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM Do not forget to setup PSRAM as "OPI PSRAM" in "Tools"
 #include "camera_pins.h"
 
 // Enter your WiFi credentials
-const char *SSID = "Feng";
-const char *PWD = "qwertyuiop1";
+const char *SSID = "Set to yours";
+const char *PWD = "Set to yours";
+const char* ACCESS_KEY = "<Set to yours>";
+const char* SECRET_KEY = "<Set to yours>";
+const char* BUCKET_NAME = "test";
+const char* MINIO_URL = "<Set to yours>"; 
+const int PIN_XIAO_SD_CARD  = 21;
 
 bool is_camera_ready = false;
 bool is_sd_card_ready = false;
 bool is_wifi_ready = false;
 bool is_global_time_ready = false;
-const int PIN_XIAO_SD_CARD  = 21;
 
 int image_counter = 0;
 
@@ -245,6 +252,18 @@ int setup_sdcard() {
   return 0;
 }
 
+String get_date_rf2616_format() {
+  time_t now;
+  struct tm timeinfo;
+  char buf[64];
+
+  time(&now);
+  gmtime_r(&now, &timeinfo);
+  strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &timeinfo);
+  
+  return String(buf);
+}
+
 // LED
 void flash_led() {
   for (int i = 0; i < 2; i++) {
@@ -352,6 +371,8 @@ int take_picture() {
       if (writeFile(SD, filename, out_buf, out_len) >= 0) {
         Serial.printf("Saved picture: %s\n", filename);
       }
+
+      upload_file(filename);
       free(out_buf);
       stat = 0;
     }
@@ -385,6 +406,60 @@ int setup_time() {
                 timeinfo.tm_sec);
   is_global_time_ready = true;
   return 0;
+}
+
+// S3 upload
+String generate_signature(String method, String date, String object_name) {
+    String stringToSign = method + "\n\n" + "image/jpeg" + "\n" + date + "\n" + "/" + BUCKET_NAME + object_name;
+    unsigned char hmacResult[20];  // SHA1 output 160bit（20 Byte）
+    mbedtls_md_context_t ctx;
+    const mbedtls_md_info_t* info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
+    mbedtls_md_init(&ctx);
+    mbedtls_md_setup(&ctx, info, 1);
+    mbedtls_md_hmac_starts(&ctx, (const unsigned char*)SECRET_KEY, strlen(SECRET_KEY));
+    mbedtls_md_hmac_update(&ctx, (const unsigned char*)stringToSign.c_str(), stringToSign.length());
+    mbedtls_md_hmac_finish(&ctx, hmacResult);
+    mbedtls_md_free(&ctx);
+
+    char base64Result[64];
+    size_t outlen;
+    mbedtls_base64_encode((unsigned char*)base64Result, 64, &outlen, hmacResult, 20);
+
+    return String(base64Result);
+}
+
+void upload_file(const char* file_path) {
+  if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      String url = String(MINIO_URL) + String(BUCKET_NAME) + String(file_path);
+      http.begin(url);
+
+      String date = get_date_rf2616_format();
+      String signature = generate_signature("PUT", date, String(file_path));
+
+      http.addHeader("Authorization", "AWS " + String(ACCESS_KEY) + ":" + signature);
+      http.addHeader("Date", date);
+      http.addHeader("Content-Type", "image/jpeg");
+
+      File file = SD.open(file_path, "r");
+      if (!file) {
+          Serial.println("Failed to open file for reading");
+          return;
+      }
+
+      int httpResponseCode = http.sendRequest("PUT", &file, file.size());
+      if (httpResponseCode > 0) {
+          String response = http.getString();
+          Serial.println("Response: " + response);
+      } else {
+          Serial.println("Error on sending file: " + String(httpResponseCode));
+      }
+
+      file.close();
+      http.end();
+  } else {
+      Serial.println("WiFi not connected");
+  }
 }
 
 
