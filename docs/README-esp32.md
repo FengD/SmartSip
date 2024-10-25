@@ -30,5 +30,5 @@ const char* MINIO_URL = "";
 * Format the SD Card as `FAT32`(recommand) or `ext4`.
 
 # Arduino Libraries
-* in `File->Preferences->Settings` add `` in Additional boards manager URLs
+* Navigate to `"File->Preferences->Settings"`, and fill `"Additional Boards Manager URLs"` with the url below: `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
 * Library manager: `I2C_BM8563_RTC -> 1.0.4`, `ArduinoHttpClient -> 0.6.1`, `Seeed_Arduino_mbedtls -> 3.0.2`, `lvgl -> 9.2.0`, `TFT_eSPI -> 2.5.43`
