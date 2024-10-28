@@ -6,6 +6,11 @@
 
 * We open all the documentation and source code of the project.
 
+# Project
+* `docs`: user guide and technical reports
+* `smartsip`: arduino project
+* `backend`: backend project
+
 # Thanks
 
 * `Chatgpt`: for the methology validation
