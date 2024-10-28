@@ -4,8 +4,8 @@ client = OpenAI()
 
 completion = client.chat.completions.create(
     model="gpt-4o",
-    # temperature=0,
-    # top_p=0.9 ,
+    temperature=0,
+    top_p=0.9 ,
     messages=[
         {
             "role": "user",
