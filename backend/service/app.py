@@ -13,24 +13,25 @@ logger = logging.getLogger(__name__)
 def handle_exception(error):
     return Response(status_code=500, description=f"error msg: {error}", headers={})
 
+# curl -X GET http://localhost:8888
 @app.get("/")
 async def hi(request):
     return f"Hello, Sphinx!"
 
-@app.post("/smartsip/call")
-async def call_smartsip(request):
-    type = request.query_params.get("output_type", "html")
-    try:
-        body = request.body
-        file = bytearray(body)
-        filename = 'temp.wav'
-        with open(filename, 'wb') as f:
-            f.write(file)
-        text = audiototext(model, filename)
-        return sphinx(text, type)
-    except Exception as e:
-        error_message = ''.join(traceback.format_exception(None, e, e.__traceback__))
-        print("Error:", error_message)
+
+# call example: curl -X POST http://localhost:8888/smartsip/upload -H "Content-Type: application/octet-stream" --data-binary @image_20241025_164659.jpg
+@app.post("/smartsip/upload")
+async def upload(request):
+    llm_type = request.query_params.get("llm_type", "openai")
+    body = request.body
+    file = bytearray(body)
+    
+    print(llm_type)
+
+    with open('test.jpeg', 'wb') as f:
+        f.write(file)
+
+    return {'message': 'success'}
 
 def show_args(args):
     for key, value in vars(args).items():
