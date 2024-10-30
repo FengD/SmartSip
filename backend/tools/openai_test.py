@@ -1,6 +1,9 @@
 from openai import OpenAI
+from backend.tools.s3_utils import get_image_s3_url
 
 client = OpenAI()
+
+image_url = get_image_s3_url("image_20241025_164659.jpg")
 
 completion = client.chat.completions.create(
     model="gpt-4o",
@@ -14,7 +17,7 @@ completion = client.chat.completions.create(
                 {
                     "type": "image_url",
                     "image_url": {
-                        "url": "http://47.105.74.27:9000/test/image_20241025_164820.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ihrzKxdmeXR275zTw8Ju%2F20241028%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20241028T100550Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=be283f995a6afa712302a4e5f2e4888deea7d28465cc89f5357453b800f1c44b",
+                        "url": image_url,
                     }
                 },
             ],
