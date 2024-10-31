@@ -9,16 +9,17 @@
 
 from abc import ABC, abstractmethod
 from typing import Optional, Union
+from backend.configs.llm_config import LLMConfig
 
 class BaseLLM(ABC):
     _config: LLMConfig
 
     @abstractmethod
-    def __init__(self):
+    def __init__(self, config: LLMConfig):
         pass
     
     @abstractmethod
-    def call_llm(self):
+    def call_llm(self, images: Optional[Union[str, list[str]]] = None):
         pass
 
     @abstractmethod

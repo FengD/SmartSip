@@ -2,6 +2,9 @@ import logging
 from robyn import Robyn, html
 from robyn.robyn import Request, Response
 import argparse
+from backend.tools.s3_utils import get_image_s3_url
+from backend.configs.llm_config import LLMType,LLMConfig
+from backend.provider.llm_provider import create_llm_instance
 
 
 app = Robyn(__file__)
@@ -19,19 +22,33 @@ async def hi(request):
     return f"Hello, Sphinx!"
 
 
-# call example: curl -X POST http://localhost:8888/smartsip/upload -H "Content-Type: application/octet-stream" --data-binary @image_20241025_164659.jpg
+# call example: curl -X POST 'http://localhost:8888/smartsip/upload?llm_type=&image_name=&model='
 @app.post("/smartsip/upload")
 async def upload(request):
     llm_type = request.query_params.get("llm_type", "openai")
-    body = request.body
-    file = bytearray(body)
+    if LLMType(llm_type) not in LLMType:
+        return Response(status_code=400, description=f"error msg: invalid llm type", headers={})
+    model  = request.query_params.get("model", "gpt-4o")
     
-    print(llm_type)
+    llm_config = LLMConfig()
+    llm_config.model = model
+    llm_config.api_type = LLMType(llm_type)
+    
+    llm_provider = create_llm_instance(llm_config)
 
-    with open('test.jpeg', 'wb') as f:
-        f.write(file)
+    image_name = request.query_params.get("image_name", "")
 
-    return {'message': 'success'}
+    if image_name:
+        image_url = get_image_s3_url(image_name)
+    else:
+        return Response(status_code=400, description=f"error msg: empty image name", headers={})
+
+    if image_url is not None:
+        response = llm_provider.call_llm(image_url)
+    else:
+        return Response(status_code=400, description=f"error msg: not valide image url", headers={})
+    
+    return Response(status_code=200, description=response, headers={})
 
 def show_args(args):
     for key, value in vars(args).items():

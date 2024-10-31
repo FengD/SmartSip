@@ -7,6 +7,10 @@
 @File     : __init__.py
 """
 
-__all__ = [
+from backend.provider.openai_provider import OpenAIProvider
+from backend.provider.ollama_provider import OllamaProvider
 
+__all__ = [
+    "OpenAIProvider",
+    "OllamaProvider"
 ]
