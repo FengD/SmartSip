@@ -9,6 +9,7 @@
 import base64
 from typing import Union, Optional
 import requests
+import os
 from backend.configs.llm_config import LLMType,LLMConfig
 from backend.provider.base_llm import BaseLLM
 from backend.provider.llm_provider import register_provider
@@ -20,7 +21,7 @@ class OllamaProvider(BaseLLM):
 
     def __init__(self, config: LLMConfig):
         self._config = config
-        self._config.base_url = "http://47.105.74.27:11434/api/generate"
+        self._config.base_url = os.environ.get("OLLAMA_API_URL") # "http://<url>:<port>/api/generate"
     
 
     def call_llm(self, images = None):
