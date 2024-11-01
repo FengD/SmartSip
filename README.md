@@ -7,11 +7,11 @@
 * We open all the documentation and source code of the project.
 
 # Project
-* `docs`: user guide and technical reports
-* `smartsip`: arduino project
-* `backend`: backend project
+* `docs`: user guide and technical reports [docs](https://github.com/FengD/SmartSip/tree/main/docs)
+* `smartsip`: arduino project [README-esp32](https://github.com/FengD/SmartSip/blob/main/docs/README-esp32.md)
+* `backend`: backend project [README-backend](https://github.com/FengD/SmartSip/blob/main/docs/README-backend.md)
 
 # Thanks
 
 * `Chatgpt`: for the methology validation
-* `SeeedStudio`: for the amazing device and the helpful documentation of the usage. https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/
+* `SeeedStudio`: for the amazing device and the helpful documentation of the usage. [https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)
