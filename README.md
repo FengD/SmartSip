@@ -10,6 +10,7 @@
 * `docs`: user guide and technical reports [docs](https://github.com/FengD/SmartSip/tree/main/docs)
 * `smartsip`: arduino project [README-esp32](https://github.com/FengD/SmartSip/blob/main/docs/README-esp32.md)
 * `backend`: backend project [README-backend](https://github.com/FengD/SmartSip/blob/main/docs/README-backend.md)
+* `Certain LLM Provider test report`: [README-LLM-test-report](https://github.com/FengD/SmartSip/blob/main/docs/README-LLM-test-report.md)
 
 # Thanks
 
