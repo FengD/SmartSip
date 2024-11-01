@@ -7,7 +7,7 @@ import os
 def get_image_s3_url(image_name):
     access_key = os.environ.get("MINIO_ACCESS_KEY")
     secret_key = os.environ.get("MINIO_SECRET_KEY")
-    endpoint_url = os.environ.get("ENDPOINT_URL")
+    endpoint_url = os.environ.get("MINIO_ENDPOINT_URL")
     s3_client = boto3.client(
         's3',
         endpoint_url=endpoint_url,
