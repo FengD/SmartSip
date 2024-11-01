@@ -16,7 +16,7 @@ The backend contains the OSS and the Service API.
 pip install -r requirements.txt
 ```
 
-* The environment variable `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `ENDPOINT_URL`(for OSS, S3); `OPENAI_API_KEY` (optional if use openai api); `OLLAMA_API_URL`(optional if use ollama api) needs to set.
+* The environment variable `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_ENDPOINT_URL`(for OSS, S3); `OPENAI_API_KEY` (optional if use openai api); `OLLAMA_API_URL`(optional if use ollama api) needs to set.
 * Set the python path `export PYTHONPATH=./`.
 * `python backend/service/app.py` to execute
 
