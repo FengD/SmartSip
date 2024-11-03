@@ -7,19 +7,23 @@
 #include <SD.h>
 #include <SPI.h>
 #include <esp_camera.h>
+#include <TFT_eSPI.h>
+#include <lvgl.h>
+#include <ArduinoJson.h>
+#include <HardwareSerial.h>
 
 // Select camera model
 #define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM Do not forget to setup PSRAM as "OPI PSRAM" in "Tools"
 #include "camera_pins.h"
 
 // Enter your WiFi credentials
-const char *SSID = "Set to yours";
-const char *PWD = "Set to yours";
-const char* ACCESS_KEY = "<Set to yours>";
-const char* SECRET_KEY = "<Set to yours>";
+const char *SSID = "";
+const char *PWD = "";
+const char* ACCESS_KEY = "YjFjYd3S6IMVWTuluw89";
+const char* SECRET_KEY = "qBF83kE0m94KxGt9dh1F0H02UJuN2pKTl1xT9z1F";
 const char* BUCKET_NAME = "test";
-const char* MINIO_URL = "<Set to yours>"; 
-const int PIN_XIAO_SD_CARD  = 21;
+const char* MINIO_URL = ""; 
+const int PIN_XIAO_SD_CARD  = D2;
 
 bool is_camera_ready = false;
 bool is_sd_card_ready = false;
@@ -27,6 +31,38 @@ bool is_wifi_ready = false;
 bool is_global_time_ready = false;
 
 int image_counter = 0;
+
+// screen setup
+#define TOUCH_INT D7
+#define SCREEN_WIDTH 240
+#define SCREEN_HEIGHT 240
+
+TFT_eSPI tft = TFT_eSPI();
+
+void setup_display() {
+  pinMode(TOUCH_INT, INPUT_PULLUP);
+  tft.init();
+  tft.setRotation(1);
+  tft.fillScreen(TFT_WHITE);
+}
+
+void display_image(camera_fb_t *fb) {
+  uint8_t* buf = fb->buf;
+  uint32_t len = fb->len;
+  tft.startWrite();
+  tft.setAddrWindow(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+  tft.pushColors(buf, len);
+  tft.endWrite();
+}
+
+bool check_display_is_pressed(void) {
+    if(digitalRead(TOUCH_INT) != LOW) {
+        delay(1);
+        if(digitalRead(TOUCH_INT) != LOW)
+        return false;
+    }
+    return true;
+}
 
 // -----------------------------------------------
 // SD Card
@@ -314,7 +350,7 @@ int setup_camera() {
   config.xclk_freq_hz = 10000000; // Reduced XCLK_FREQ_HZ from 20KHz to 10KHz (no EV-VSYNC-OVF message)
   //config.frame_size = FRAMESIZE_UXGA;
   //config.frame_size = FRAMESIZE_SVGA;
-  config.frame_size = FRAMESIZE_UXGA;
+  config.frame_size = FRAMESIZE_240X240;
   //config.pixel_format = PIXFORMAT_JPEG; // for streaming
   config.pixel_format = PIXFORMAT_RGB565;
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
@@ -333,8 +369,8 @@ int setup_camera() {
   return 0;
 }
 
-int take_picture() {
-  if( is_sd_card_ready && is_camera_ready){
+int get_image_stream() {
+  if(is_camera_ready){
     // Take a photo
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
@@ -358,7 +394,7 @@ int take_picture() {
       image_counter++;
     }
     
-    // Save photo to file
+    // Save frame to buffer
     size_t out_len = 0;
     uint8_t* out_buf = NULL;
     int jpeg_quality = 30;
@@ -368,14 +404,25 @@ int take_picture() {
       Serial.println("JPEG conversion failed");
     } else {
       // Save photo to file
-      if (writeFile(SD, filename, out_buf, out_len) >= 0) {
-        Serial.printf("Saved picture: %s\n", filename);
-      }
+      if (check_display_is_pressed()) {
+        Serial.println("display is touched");
+        if (is_sd_card_ready && writeFile(SD, filename, out_buf, out_len) >= 0) {
+          Serial.printf("Saved picture: %s\n", filename);
+        }
 
-      upload_file(filename);
+        if (upload_file(filename) == 0) {
+          String llm_response = call_llm_server(filename);
+          if(llm_response != "") {
+            transform_json2command(llm_response.c_str());
+          }
+        }
+      }
       free(out_buf);
       stat = 0;
     }
+
+    display_image(fb);
+
     esp_camera_fb_return(fb);
     return stat;
   }
@@ -428,7 +475,8 @@ String generate_signature(String method, String date, String object_name) {
     return String(base64Result);
 }
 
-void upload_file(const char* file_path) {
+int upload_file(const char* file_path) {
+  int status = -1;
   if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
       String url = String(MINIO_URL) + String(BUCKET_NAME) + String(file_path);
@@ -444,13 +492,14 @@ void upload_file(const char* file_path) {
       File file = SD.open(file_path, "r");
       if (!file) {
           Serial.println("Failed to open file for reading");
-          return;
+          return status;
       }
 
       int httpResponseCode = http.sendRequest("PUT", &file, file.size());
       if (httpResponseCode > 0) {
           String response = http.getString();
           Serial.println("Response: " + response);
+          status = 0;
       } else {
           Serial.println("Error on sending file: " + String(httpResponseCode));
       }
@@ -460,6 +509,91 @@ void upload_file(const char* file_path) {
   } else {
       Serial.println("WiFi not connected");
   }
+
+  return status;
+}
+
+const uint8_t unlock[5] = {0x69, 0x01, 0x2d, 0x32, 0x60};
+const uint8_t close_water[5] =  {0x69, 0x11, 0x2d, 0x32, 0x70};
+
+void transform_json2command(const char* json_str) {
+  HardwareSerial MySerial0(0);
+
+  JsonDocument doc;
+  deserializeJson(doc, json_str);
+
+  int v = doc["volume"];
+  int t = doc["degree"];
+  const char* type = doc["type"];
+
+  Serial.println(v);
+  Serial.println(t);
+  Serial.println(type);
+
+  uint8_t data[5] = {0};
+  
+  data[0] = 0x69;
+  if (v < 150) {
+    data[3] = 0x0f;
+  } else if (v > 300 ) {
+    data[3] = 0x32;
+  } else {
+    data[3] = 0x1e;
+  }
+
+  if (t < 20) {
+    data[1] = 0x66;
+    data[2] = 0x2d;
+  } else if (t > 20 && t < 60) {
+    // warm water
+    data[1] = 0x77;
+    data[2] = 0x32;
+  } else if (t > 60 && t < 90) {
+    // hot water
+    data[1] = 0x88;
+    data[2] = 0x55;
+  } else {
+    // boiling water
+    data[1] = 0x99;
+    data[2] = 0x5e;
+  }
+
+  data[5] = data[1] + data[2] + data[3];
+  if (v > 0) {
+    if (t > 90) {
+      MySerial0.write(unlock, sizeof(unlock));
+    }
+    MySerial0.write(data, sizeof(data));
+    Serial.printf("command: %x %x %x %x %x\n", data[0], data[1], data[2], data[3], data[4]);
+  }
+}
+
+#define SERVICE_ADDRESS ""
+#define LLM_TYPE "openai"
+#define MODEL "gpt-4o"
+
+// call llm server
+String call_llm_server(const char* file_path) {
+  if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      String url = String(SERVICE_ADDRESS) + "/smartsip/upload?llm_type=" + String(LLM_TYPE)
+                                   + "&image_name=" + String(file_path) 
+                                   + "&model=" + String(MODEL);
+      http.begin(url);
+
+      int httpResponseCode = http.sendRequest("POST");
+      if (httpResponseCode > 0) {
+          String response = http.getString();
+          Serial.println("Response: " + response);
+          return response;
+      } else {
+          Serial.println("Error on sending file: " + String(httpResponseCode));
+      }
+      http.end();
+  } else {
+      Serial.println("WiFi not connected");
+  }
+  return "";
 }
 
 
@@ -468,6 +602,9 @@ void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println("Serial Setup Success!");
+
+  // Screen
+  setup_display();
 
   // TEST LED
   pinMode(LED_BUILTIN, OUTPUT);
@@ -495,8 +632,7 @@ void setup() {
 }
 
 void loop() {
-  if (take_picture() >= 0) {
-    flash_led();
-  }
-  delay(3000);
+  get_image_stream();
+  // make a deplay
+  delay(20);
 }
