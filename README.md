@@ -6,11 +6,24 @@
 
 * We open all the documentation and source code of the project.
 
+# Demo
+
+(interaction diagram)
+
+(video)
+
+# Highlight Functionalities
+
+1. `One touch` and all automatic. (v0.1)
+2. `LLM support`. Analysis the type of the container and gives the volume and temperature of the water needed. (v0.1)
+3. `Wireless control by mobile`.(v1.0)
+
 # Project
 * `docs`: user guide and technical reports [docs](https://github.com/FengD/SmartSip/tree/main/docs)
 * `smartsip`: arduino project [README-esp32](https://github.com/FengD/SmartSip/blob/main/docs/README-esp32.md)
 * `backend`: backend project [README-backend](https://github.com/FengD/SmartSip/blob/main/docs/README-backend.md)
 * `Certain LLM Provider test report`: [README-LLM-test-report](https://github.com/FengD/SmartSip/blob/main/docs/README-LLM-test-report.md)
+* `hardware`: [v0.1](), [v1.0]()
 
 # Thanks
 
