@@ -11,19 +11,23 @@
 #include <lvgl.h>
 #include <ArduinoJson.h>
 #include <HardwareSerial.h>
+#include <Wire.h>
 
 // Select camera model
 #define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM Do not forget to setup PSRAM as "OPI PSRAM" in "Tools"
 #include "camera_pins.h"
 
 // Enter your WiFi credentials
-const char *SSID = "";
-const char *PWD = "";
-const char* ACCESS_KEY = "YjFjYd3S6IMVWTuluw89";
-const char* SECRET_KEY = "qBF83kE0m94KxGt9dh1F0H02UJuN2pKTl1xT9z1F";
+const char *SSID = "<wifi ssid>";
+const char *PWD = "<wifi password>";
+const char* ACCESS_KEY = "<minio_access_key>";
+const char* SECRET_KEY = "<minio_secret_key>";
 const char* BUCKET_NAME = "test";
-const char* MINIO_URL = ""; 
+const char* MINIO_URL = "<minio_server_url>"; 
 const int PIN_XIAO_SD_CARD  = D2;
+
+const uint8_t unlock[5] = {0x69, 0x01, 0x2d, 0x32, 0x60};
+const uint8_t close_water[5] =  {0x69, 0x11, 0x2d, 0x32, 0x70};
 
 bool is_camera_ready = false;
 bool is_sd_card_ready = false;
@@ -32,17 +36,34 @@ bool is_global_time_ready = false;
 
 int image_counter = 0;
 
+HardwareSerial serial_port(0);
+
 // screen setup
 #define TOUCH_INT D7
 #define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 240
+#define CHSC6X_READ_POINT_LEN 5
+#define CHSC6X_I2C_ID 0x2e
+
+// 0,1,2,3  -> 0, 90, 180, 270 clockwise
+// set rotation to 1
+// |-----------------------------------------|
+// |(WIDTH_MAX, Height_MAX)------------------|
+// |-----------------------------------------|
+// |-----------------------------------------|
+// |-----------------------------------------|
+// |-----------------------------------------|
+// |------------------(WIDTH_MIN, HEIGHT_MIN)|
+
+uint8_t screen_rotation = 1;
 
 TFT_eSPI tft = TFT_eSPI();
 
 void setup_display() {
   pinMode(TOUCH_INT, INPUT_PULLUP);
+  Wire.begin();
   tft.init();
-  tft.setRotation(1);
+  tft.setRotation(screen_rotation);
   tft.fillScreen(TFT_WHITE);
 }
 
@@ -62,6 +83,30 @@ bool check_display_is_pressed(void) {
         return false;
     }
     return true;
+}
+
+void convert_display_xy(uint8_t *x, uint8_t *y) {
+    uint8_t x_tmp = *x, y_tmp = *y, _end = 0;
+    for(int i=1; i<=screen_rotation; i++){
+        x_tmp = *x;
+        y_tmp = *y;
+        _end = (i % 2) ? SCREEN_WIDTH : SCREEN_HEIGHT;
+        *x = y_tmp;
+        *y = _end - x_tmp;
+    }
+}
+
+void get_display_touch_xy(lv_coord_t * x, lv_coord_t * y){
+    uint8_t temp[CHSC6X_READ_POINT_LEN] = {0};
+    uint8_t read_len = Wire.requestFrom(CHSC6X_I2C_ID, CHSC6X_READ_POINT_LEN);
+    if(read_len == CHSC6X_READ_POINT_LEN){
+        Wire.readBytes(temp, read_len);
+        if (temp[0] == 0x01) {
+        convert_display_xy(&temp[2], &temp[4]);
+        *x = temp[2];
+        *y = temp[4];
+        }
+    }
 }
 
 // -----------------------------------------------
@@ -403,19 +448,34 @@ int get_image_stream() {
     if (ret == false) {
       Serial.println("JPEG conversion failed");
     } else {
-      // Save photo to file
       if (check_display_is_pressed()) {
         Serial.println("display is touched");
-        if (is_sd_card_ready && writeFile(SD, filename, out_buf, out_len) >= 0) {
-          Serial.printf("Saved picture: %s\n", filename);
+        lv_coord_t x, y;
+        get_display_touch_xy(&x, &y);
+        Serial.println(x);
+        Serial.println(y);
+
+        if(y < 120) {
+          tft.drawSpot(x, y, 10, TFT_GREEN, TFT_GREEN);
+          // Save photo to file
+          if (is_sd_card_ready && writeFile(SD, filename, out_buf, out_len) >= 0) {
+            Serial.printf("Saved picture: %s\n", filename);
+            if (upload_file(filename) == 0) {
+              String llm_response = call_llm_server(filename);
+              if(llm_response != "") {
+                tft.drawString(llm_response, 10, SCREEN_HEIGHT / 2);
+                transform_json2command(llm_response.c_str());
+                delay(2000);
+              }
+            }
+          }
+        } else {
+          tft.drawSpot(x, y, 10, TFT_RED, TFT_RED);
+          tft.drawString("Stop", 10, SCREEN_HEIGHT / 2);
+          serial_port.write(close_water, sizeof(close_water));
+          delay(500);
         }
 
-        if (upload_file(filename) == 0) {
-          String llm_response = call_llm_server(filename);
-          if(llm_response != "") {
-            transform_json2command(llm_response.c_str());
-          }
-        }
       }
       free(out_buf);
       stat = 0;
@@ -513,11 +573,8 @@ int upload_file(const char* file_path) {
   return status;
 }
 
-const uint8_t unlock[5] = {0x69, 0x01, 0x2d, 0x32, 0x60};
-const uint8_t close_water[5] =  {0x69, 0x11, 0x2d, 0x32, 0x70};
-
 void transform_json2command(const char* json_str) {
-  HardwareSerial MySerial0(0);
+  
 
   JsonDocument doc;
   deserializeJson(doc, json_str);
@@ -561,14 +618,14 @@ void transform_json2command(const char* json_str) {
   data[5] = data[1] + data[2] + data[3];
   if (v > 0) {
     if (t > 90) {
-      MySerial0.write(unlock, sizeof(unlock));
+      serial_port.write(unlock, sizeof(unlock));
     }
-    MySerial0.write(data, sizeof(data));
+    serial_port.write(data, sizeof(data));
     Serial.printf("command: %x %x %x %x %x\n", data[0], data[1], data[2], data[3], data[4]);
   }
 }
 
-#define SERVICE_ADDRESS ""
+#define SERVICE_ADDRESS "<backend address>"
 #define LLM_TYPE "openai"
 #define MODEL "gpt-4o"
 
