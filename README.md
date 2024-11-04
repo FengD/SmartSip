@@ -32,5 +32,7 @@
 
 # Contributors
 
+Sort by joining time
+
 * [FengD](https://github.com/FengD)
 * [gong-333](https://github.com/gong-333)
