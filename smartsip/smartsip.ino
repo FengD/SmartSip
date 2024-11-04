@@ -623,8 +623,8 @@ void transform_json2command(const char* json_str) {
     data[1] = 0x99;
     data[2] = 0x5e;
   }
-
-  data[5] = data[1] + data[2] + data[3];
+  uint16_t checksum = data[1] + data[2] + data[3];
+  data[4] = (uint8_t)(checksum & 0xff);
   if (v > 0) {
     if (t > 90) {
       serial_port.write(unlock, sizeof(unlock));
