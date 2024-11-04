@@ -16,3 +16,8 @@
 
 * `Chatgpt`: for the methology validation
 * `SeeedStudio`: for the amazing device and the helpful documentation of the usage. [https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/)
+
+# Contributors
+
+* [FengD](https://github.com/FengD)
+* [gong-333](https://github.com/gong-333)
