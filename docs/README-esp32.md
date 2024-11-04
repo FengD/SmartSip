@@ -35,9 +35,10 @@ const char* MODEL = "gpt-4o";  // gpt-4o etc for openai, llava for ollama
 # Arduino Libraries
 * Navigate to `"File->Preferences->Settings"`, and fill `"Additional Boards Manager URLs"` with the url below: `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
 * Library manager:
-     * `I2C_BM8563_RTC -> 1.0.4(optional)`,
-     * `ArduinoHttpClient -> 0.6.1`,(for http request)
-     * `Seeed_Arduino_mbedtls -> 3.0.2`,(for base64 encoder)
-     * `lvgl -> 9.2.0`,（should use the version of Seeed： https://github.com/Seeed-Projects/SeeedStudio_lvgl）
-     * `TFT_eSPI -> 2.5.43`（should use the version of Seeed: https://github.com/Seeed-Projects/SeeedStudio_TFT_eSPI） follow this link to test the display https://wiki.seeedstudio.com/get_start_round_display/ especially the `lv_conf.h`
-     * `ArduinoJson -> 7.2.0`(for json use)
+     * `I2C_BM8563_RTC -> 1.0.4(optional)`
+     * `ArduinoHttpClient -> 0.6.1` (for http request)
+     * `Seeed_Arduino_mbedtls -> 3.0.2` (for base64 encoder)
+     * `lvgl -> 9.2.0` (should use the version of Seeed： https://github.com/Seeed-Projects/SeeedStudio_lvgl )
+     * `TFT_eSPI -> 2.5.43` (should use the version of Seeed: https://github.com/Seeed-Projects/SeeedStudio_TFT_eSPI )
+     * follow this link to test the display https://wiki.seeedstudio.com/get_start_round_display/ especially the `lv_conf.h`
+     * `ArduinoJson -> 7.2.0` (for json use)
