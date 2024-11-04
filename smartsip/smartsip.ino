@@ -24,7 +24,10 @@ const char* ACCESS_KEY = "<minio_access_key>";
 const char* SECRET_KEY = "<minio_secret_key>";
 const char* BUCKET_NAME = "test";
 const char* MINIO_URL = "<minio_server_url>"; 
-const int PIN_XIAO_SD_CARD  = D2;
+const int PIN_XIAO_SD_CARD  = D2;  // sd card on display, if use the sd card slot on XIAO change to 21
+const char* SERVICE_ADDRESS = "<backend address>"
+const char* LLM_TYPE = "openai"
+const char* MODEL = "gpt-4o"
 
 const uint8_t unlock[5] = {0x69, 0x01, 0x2d, 0x32, 0x60};
 const uint8_t close_water[5] =  {0x69, 0x11, 0x2d, 0x32, 0x70};
@@ -38,7 +41,8 @@ int image_counter = 0;
 
 HardwareSerial serial_port(0);
 
-// screen setup
+// --------------------------------------------------------------------------------
+// display
 #define TOUCH_INT D7
 #define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 240
@@ -46,6 +50,7 @@ HardwareSerial serial_port(0);
 #define CHSC6X_I2C_ID 0x2e
 
 // 0,1,2,3  -> 0, 90, 180, 270 clockwise
+// when typeC port on XIAO is to the top
 // set rotation to 1
 // |-----------------------------------------|
 // |(WIDTH_MAX, Height_MAX)------------------|
@@ -109,7 +114,7 @@ void get_display_touch_xy(lv_coord_t * x, lv_coord_t * y){
     }
 }
 
-// -----------------------------------------------
+// --------------------------------------------------------------------------------
 // SD Card
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
     Serial.printf("Listing directory: %s\n", dirname);
@@ -333,6 +338,7 @@ int setup_sdcard() {
   return 0;
 }
 
+// -----------------------------------------------------------------------------------
 String get_date_rf2616_format() {
   time_t now;
   struct tm timeinfo;
@@ -345,6 +351,7 @@ String get_date_rf2616_format() {
   return String(buf);
 }
 
+// ---------------------------------------------------------------------------------
 // LED
 void flash_led() {
   for (int i = 0; i < 2; i++) {
@@ -355,6 +362,7 @@ void flash_led() {
   }
 }
 
+// ---------------------------------------------------------------------------------
 // WIFI
 void setup_wifi() {
   WiFi.mode(WIFI_STA);
@@ -370,6 +378,7 @@ void setup_wifi() {
   is_wifi_ready = true;
 }
 
+// --------------------------------------------------------------------------------
 // camera
 int setup_camera() {
   // Camera pinout
@@ -392,12 +401,9 @@ int setup_camera() {
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000; // Reduced XCLK_FREQ_HZ from 20KHz to 10KHz (no EV-VSYNC-OVF message)
-  //config.frame_size = FRAMESIZE_UXGA;
-  //config.frame_size = FRAMESIZE_SVGA;
-  config.frame_size = FRAMESIZE_240X240;
-  //config.pixel_format = PIXFORMAT_JPEG; // for streaming
-  config.pixel_format = PIXFORMAT_RGB565;
+  config.xclk_freq_hz = 10000000;  // Reduced XCLK_FREQ_HZ from 20KHz to 10KHz (no EV-VSYNC-OVF message)
+  config.frame_size = FRAMESIZE_240X240;  // FRAMESIZE_UXGA;
+  config.pixel_format = PIXFORMAT_RGB565;  // PIXFORMAT_JPEG; for streaming
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 1;
@@ -490,6 +496,7 @@ int get_image_stream() {
   return -1;
 }
 
+// ----------------------------------------------------------------------
 // TIME
 int setup_time() {
   const char* net_server = "pool.ntp.org";
@@ -515,6 +522,7 @@ int setup_time() {
   return 0;
 }
 
+// --------------------------------------------------------------------------
 // S3 upload
 String generate_signature(String method, String date, String object_name) {
     String stringToSign = method + "\n\n" + "image/jpeg" + "\n" + date + "\n" + "/" + BUCKET_NAME + object_name;
@@ -573,9 +581,9 @@ int upload_file(const char* file_path) {
   return status;
 }
 
+// -------------------------------------------------------------------
+// json deserialization
 void transform_json2command(const char* json_str) {
-  
-
   JsonDocument doc;
   deserializeJson(doc, json_str);
 
@@ -599,6 +607,7 @@ void transform_json2command(const char* json_str) {
   }
 
   if (t < 20) {
+    // cool water
     data[1] = 0x66;
     data[2] = 0x2d;
   } else if (t > 20 && t < 60) {
@@ -625,10 +634,7 @@ void transform_json2command(const char* json_str) {
   }
 }
 
-#define SERVICE_ADDRESS "<backend address>"
-#define LLM_TYPE "openai"
-#define MODEL "gpt-4o"
-
+// ----------------------------------------------------------------------------------
 // call llm server
 String call_llm_server(const char* file_path) {
   if (WiFi.status() == WL_CONNECTED) {
@@ -660,7 +666,7 @@ void setup() {
   Serial.setDebugOutput(true);
   Serial.println("Serial Setup Success!");
 
-  // Screen
+  // DISPLAY
   setup_display();
 
   // TEST LED
@@ -689,7 +695,7 @@ void setup() {
 }
 
 void loop() {
+  // make an action
   get_image_stream();
-  // make a deplay
   delay(20);
 }
