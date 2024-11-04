@@ -12,6 +12,9 @@ const char* ACCESS_KEY = "";
 const char* SECRET_KEY = "";
 const char* BUCKET_NAME = "";
 const char* MINIO_URL = "";
+const char* SERVICE_ADDRESS = "";  // backend service address of the backend
+const char* LLM_TYPE = "";   // openai or ollama now suppert
+const char* MODEL = "gpt-4o";  // gpt-4o etc for openai, llava for ollama
 ```
 
 # WIFI
