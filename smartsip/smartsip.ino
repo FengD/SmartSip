@@ -10,25 +10,27 @@
 #include <TFT_eSPI.h>
 #include <lvgl.h>
 #include <ArduinoJson.h>
-#include <HardwareSerial.h>
-#include <Wire.h>
+#include <HardwareSerial.h>  // xiao serial port use
+#include <Wire.h>  // xiao connect with display by touch action
 
 // Select camera model
 #define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM Do not forget to setup PSRAM as "OPI PSRAM" in "Tools"
 #include "camera_pins.h"
 
+// need to modify ----------------------------------------
 // Enter your WiFi credentials
-const char *SSID = "<wifi ssid>";
-const char *PWD = "<wifi password>";
+const char *SSID = "<wifi_ssid>";
+const char *PWD = "<wifi_password>";
 const char* ACCESS_KEY = "<minio_access_key>";
 const char* SECRET_KEY = "<minio_secret_key>";
-const char* BUCKET_NAME = "test";
-const char* MINIO_URL = "<minio_server_url>"; 
-const int PIN_XIAO_SD_CARD  = D2;  // sd card on display, if use the sd card slot on XIAO change to 21
-const char* SERVICE_ADDRESS = "<backend address>"
-const char* LLM_TYPE = "openai"
-const char* MODEL = "gpt-4o"
+const char* BUCKET_NAME = "<minio_bucket_name>";
+const char* MINIO_URL = "<minio_url>";  // no need / at the end 
+const char* SERVICE_ADDRESS = "<backend_service>";  // no need / at the end
+const char* LLM_TYPE = "<llm_provider_type>";
+const char* MODEL = "<model_type>";
+// ---------------------------------------------------------
 
+const int PIN_XIAO_SD_CARD  = D2;  // sd card on display, if use the sd card slot on XIAO change to 21
 const uint8_t unlock[5] = {0x69, 0x01, 0x2d, 0x32, 0x60};
 const uint8_t close_water[5] =  {0x69, 0x11, 0x2d, 0x32, 0x70};
 
@@ -547,7 +549,7 @@ int upload_file(const char* file_path) {
   int status = -1;
   if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
-      String url = String(MINIO_URL) + String(BUCKET_NAME) + String(file_path);
+      String url = String(MINIO_URL) + "/" + String(BUCKET_NAME) + String(file_path);
       http.begin(url);
 
       String date = get_date_rf2616_format();
@@ -598,23 +600,23 @@ void transform_json2command(const char* json_str) {
   uint8_t data[5] = {0};
   
   data[0] = 0x69;
-  if (v < 150) {
+  if (v <= 200) {
     data[3] = 0x0f;
-  } else if (v > 300 ) {
+  } else if (v > 200 && v <= 300 ) {
     data[3] = 0x32;
   } else {
     data[3] = 0x1e;
   }
 
-  if (t < 20) {
+  if (t < 30) {
     // cool water
     data[1] = 0x66;
     data[2] = 0x2d;
-  } else if (t > 20 && t < 60) {
+  } else if (t >= 30 && t < 55) {
     // warm water
     data[1] = 0x77;
     data[2] = 0x32;
-  } else if (t > 60 && t < 90) {
+  } else if (t >= 55 && t < 80) {
     // hot water
     data[1] = 0x88;
     data[2] = 0x55;
@@ -665,6 +667,9 @@ void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println("Serial Setup Success!");
+
+  // Configure MySerial0 on pins TX=D6 and RX=D7 (-1, -1 means use the default)
+  serial_port.begin(9600, SERIAL_8N1, -1, -1);
 
   // DISPLAY
   setup_display();
