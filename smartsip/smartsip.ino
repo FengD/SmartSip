@@ -600,12 +600,10 @@ void transform_json2command(const char* json_str) {
   uint8_t data[5] = {0};
   
   data[0] = 0x69;
-  if (v <= 200) {
+  if (v > 500) {
     data[3] = 0x0f;
-  } else if (v > 200 && v <= 300 ) {
-    data[3] = 0x32;
   } else {
-    data[3] = 0x1e;
+    data[3] = (uint8_t)(v / 10 - 1);
   }
 
   if (t < 30) {
