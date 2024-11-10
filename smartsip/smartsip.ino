@@ -12,6 +12,10 @@
 #include <ArduinoJson.h>
 #include <HardwareSerial.h>  // xiao serial port use
 #include <Wire.h>  // xiao connect with display by touch action
+// for web socket display on pad, mobile or PC
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <WebSocketsServer.h>
 
 // Select camera model
 #define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM Do not forget to setup PSRAM as "OPI PSRAM" in "Tools"
@@ -19,15 +23,15 @@
 
 // need to modify ----------------------------------------
 // Enter your WiFi credentials
-const char *SSID = "<wifi_ssid>";
-const char *PWD = "<wifi_password>";
-const char* ACCESS_KEY = "<minio_access_key>";
-const char* SECRET_KEY = "<minio_secret_key>";
-const char* BUCKET_NAME = "<minio_bucket_name>";
-const char* MINIO_URL = "<minio_url>";  // no need / at the end 
-const char* SERVICE_ADDRESS = "<backend_service>";  // no need / at the end
-const char* LLM_TYPE = "<llm_provider_type>";
-const char* MODEL = "<model_type>";
+const char *SSID = "";
+const char *PWD = "";
+const char* ACCESS_KEY = "";
+const char* SECRET_KEY = "";
+const char* BUCKET_NAME = "";
+const char* MINIO_URL = "";  // no need / at the end 
+const char* SERVICE_ADDRESS = "";  // no need / at the end
+const char* LLM_TYPE = "";
+const char* MODEL = "";
 // ---------------------------------------------------------
 
 const int PIN_XIAO_SD_CARD  = D2;  // sd card on display, if use the sd card slot on XIAO change to 21
@@ -43,7 +47,85 @@ int image_counter = 0;
 
 HardwareSerial serial_port(0);
 
-// --------------------------------------------------------------------------------
+const char htmlPage[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SmartSip</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; }
+    .container { display: flex; flex-direction: column; gap: 20px; }
+    .display, .controls { border: 1px solid #ccc; padding: 20px; border-radius: 10px; }
+    .display { text-align: center; }
+    .display img { width: 100%; height: auto; max-height: 200px; }
+    .controls { display: flex; flex-direction: column; gap: 15px; }
+    .controls label { display: flex; justify-content: space-between; }
+    .progress-container { width: 100%; background-color: #ddd; border-radius: 5px; }
+    .progress-bar { width: 0; height: 20px; background-color: #4CAF50; border-radius: 5px; }
+    button { width: 100%; padding: 10px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; }
+    button:active { background-color: #ddd; }
+    @media (min-width: 768px) {
+      .container { flex-direction: row; gap: 30px; }
+      .display, .controls { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <h2>SmartSip</h2>
+  <div class="container">
+    <div class="display">
+      <h3>Current Status</h3>
+      <p>Water Temperature(C): <span id="tempDisplay">20</span></p>
+      <p>Water Volume(ml): <span id="volumeDisplay">150</span></p>
+      <p>Description: <span id="descriptionDisplay">This is the SmartSip</span></p>
+      <img id="waterImage" src="https://via.placeholder.com/240x240" alt="Default Image">
+    </div>
+
+    <div class="controls">
+      <h3>Control Panel</h3>
+      <label>Water Volume (100-500ml): <span id="volumeValue">150</span></label>
+      <input type="range" id="volume" min="100" max="500" value="150" oninput="updateVolume(this.value)">
+      
+      <label>Water Temperature (20-100C): <span id="tempValue">20</span></label>
+      <input type="range" id="temperature" min="20" max="100" value="20" oninput="updateTemp(this.value)">
+
+      <button onclick="sendCommand('start')">Add Water</button>
+      <button onclick="sendCommand('stop')">Stop</button>
+
+    </div>
+  </div>
+)rawliteral"
+R"rawliteral(
+  <script>
+    const socket = new WebSocket("ws://" + location.hostname + ":81/");
+    socket.onmessage = function(event) {
+      console.log(event.data);
+      const message = JSON.parse(event.data);
+      document.getElementById("tempDisplay").textContent = message['degree'];
+      document.getElementById("volumeDisplay").textContent = message['volume'];
+      document.getElementById("descriptionDisplay").textContent = message['type'];
+    };
+    function updateVolume(value) {
+      document.getElementById("volumeValue").textContent = value;
+    }
+    function updateTemp(value) {
+      document.getElementById("tempValue").textContent = value;
+    }
+    function sendCommand(command) {
+      const volume = document.getElementById("volume").value;
+      const temp = document.getElementById("temperature").value;
+      const data = { type: command, volume: volume, degree: temp };
+      socket.send(JSON.stringify(data));
+    }
+  </script>
+</body>
+</html>
+)rawliteral";
+
+// Set up server and WebSocket
+AsyncWebServer server(80);
+WebSocketsServer webSocket(81);
+
 // display
 #define TOUCH_INT D7
 #define SCREEN_WIDTH 240
@@ -380,125 +462,6 @@ void setup_wifi() {
   is_wifi_ready = true;
 }
 
-// --------------------------------------------------------------------------------
-// camera
-int setup_camera() {
-  // Camera pinout
-  camera_config_t config;
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer = LEDC_TIMER_0;
-  config.pin_d0 = Y2_GPIO_NUM;
-  config.pin_d1 = Y3_GPIO_NUM;
-  config.pin_d2 = Y4_GPIO_NUM;
-  config.pin_d3 = Y5_GPIO_NUM;
-  config.pin_d4 = Y6_GPIO_NUM;
-  config.pin_d5 = Y7_GPIO_NUM;
-  config.pin_d6 = Y8_GPIO_NUM;
-  config.pin_d7 = Y9_GPIO_NUM;
-  config.pin_xclk = XCLK_GPIO_NUM;
-  config.pin_pclk = PCLK_GPIO_NUM;
-  config.pin_vsync = VSYNC_GPIO_NUM;
-  config.pin_href = HREF_GPIO_NUM;
-  config.pin_sscb_sda = SIOD_GPIO_NUM;
-  config.pin_sscb_scl = SIOC_GPIO_NUM;
-  config.pin_pwdn = PWDN_GPIO_NUM;
-  config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000;  // Reduced XCLK_FREQ_HZ from 20KHz to 10KHz (no EV-VSYNC-OVF message)
-  config.frame_size = FRAMESIZE_240X240;  // FRAMESIZE_UXGA;
-  config.pixel_format = PIXFORMAT_RGB565;  // PIXFORMAT_JPEG; for streaming
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-  config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 1;
-  config.fb_count = 2;
-
-  // camera init
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
-    return -1;
-  }
-  Serial.println("Camera ready");
-  is_camera_ready = true;
-  return 0;
-}
-
-int get_image_stream() {
-  if(is_camera_ready){
-    // Take a photo
-    camera_fb_t *fb = esp_camera_fb_get();
-    if (!fb) {
-      Serial.println("Failed to get camera frame buffer");
-      return -1;
-    }
-    char filename[64];
-    if (is_global_time_ready) {
-      struct tm timeinfo;
-      if (getLocalTime(&timeinfo)) {
-        sprintf(filename, "/image_%04d%02d%02d_%02d%02d%02d.jpg", 
-                timeinfo.tm_year + 1900,
-                timeinfo.tm_mon + 1,
-                timeinfo.tm_mday,
-                timeinfo.tm_hour,
-                timeinfo.tm_min,
-                timeinfo.tm_sec);
-      }
-    } else {
-      sprintf(filename, "/image_%06d.jpg", image_counter);
-      image_counter++;
-    }
-    
-    // Save frame to buffer
-    size_t out_len = 0;
-    uint8_t* out_buf = NULL;
-    int jpeg_quality = 30;
-    esp_err_t ret = frame2jpg(fb, jpeg_quality, &out_buf, &out_len);
-    int stat = -1;
-    if (ret == false) {
-      Serial.println("JPEG conversion failed");
-    } else {
-      if (check_display_is_pressed()) {
-        Serial.println("display is touched");
-        lv_coord_t x, y;
-        get_display_touch_xy(&x, &y);
-        Serial.println(x);
-        Serial.println(y);
-
-        if(y < 120) {
-          tft.drawSpot(x, y, 10, TFT_GREEN, TFT_GREEN);
-          // Save photo to file
-          if (is_sd_card_ready && writeFile(SD, filename, out_buf, out_len) >= 0) {
-            Serial.printf("Saved picture: %s\n", filename);
-            if (upload_file(filename) == 0) {
-              String llm_response = call_llm_server(filename);
-              if(llm_response != "") {
-                tft.drawString(llm_response, 10, SCREEN_HEIGHT / 2);
-                transform_json2command(llm_response.c_str());
-                delay(2000);
-              }
-            }
-          }
-        } else {
-          tft.drawSpot(x, y, 10, TFT_RED, TFT_RED);
-          tft.drawString("Stop", 10, SCREEN_HEIGHT / 2);
-          serial_port.write(close_water, sizeof(close_water));
-          delay(500);
-        }
-
-      }
-      free(out_buf);
-      stat = 0;
-    }
-
-    display_image(fb);
-
-    esp_camera_fb_return(fb);
-    return stat;
-  }
-
-  return -1;
-}
-
-// ----------------------------------------------------------------------
 // TIME
 int setup_time() {
   const char* net_server = "pool.ntp.org";
@@ -660,6 +623,166 @@ String call_llm_server(const char* file_path) {
 }
 
 
+// --------------------------------------------------------------------------------
+// camera
+int setup_camera() {
+  // Camera pinout
+  camera_config_t config;
+  config.ledc_channel = LEDC_CHANNEL_0;
+  config.ledc_timer = LEDC_TIMER_0;
+  config.pin_d0 = Y2_GPIO_NUM;
+  config.pin_d1 = Y3_GPIO_NUM;
+  config.pin_d2 = Y4_GPIO_NUM;
+  config.pin_d3 = Y5_GPIO_NUM;
+  config.pin_d4 = Y6_GPIO_NUM;
+  config.pin_d5 = Y7_GPIO_NUM;
+  config.pin_d6 = Y8_GPIO_NUM;
+  config.pin_d7 = Y9_GPIO_NUM;
+  config.pin_xclk = XCLK_GPIO_NUM;
+  config.pin_pclk = PCLK_GPIO_NUM;
+  config.pin_vsync = VSYNC_GPIO_NUM;
+  config.pin_href = HREF_GPIO_NUM;
+  config.pin_sscb_sda = SIOD_GPIO_NUM;
+  config.pin_sscb_scl = SIOC_GPIO_NUM;
+  config.pin_pwdn = PWDN_GPIO_NUM;
+  config.pin_reset = RESET_GPIO_NUM;
+  config.xclk_freq_hz = 10000000;  // Reduced XCLK_FREQ_HZ from 20KHz to 10KHz (no EV-VSYNC-OVF message)
+  config.frame_size = FRAMESIZE_240X240;  // FRAMESIZE_UXGA;
+  config.pixel_format = PIXFORMAT_RGB565;  // PIXFORMAT_JPEG; for streaming
+  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  config.fb_location = CAMERA_FB_IN_PSRAM;
+  config.jpeg_quality = 1;
+  config.fb_count = 2;
+
+  // camera init
+  esp_err_t err = esp_camera_init(&config);
+  if (err != ESP_OK) {
+    Serial.printf("Camera init failed with error 0x%x", err);
+    return -1;
+  }
+  Serial.println("Camera ready");
+  is_camera_ready = true;
+  return 0;
+}
+
+int get_image_stream() {
+  if(is_camera_ready){
+    // Take a photo
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (!fb) {
+      Serial.println("Failed to get camera frame buffer");
+      return -1;
+    }
+    char filename[64];
+    if (is_global_time_ready) {
+      struct tm timeinfo;
+      if (getLocalTime(&timeinfo)) {
+        sprintf(filename, "/image_%04d%02d%02d_%02d%02d%02d.jpg", 
+                timeinfo.tm_year + 1900,
+                timeinfo.tm_mon + 1,
+                timeinfo.tm_mday,
+                timeinfo.tm_hour,
+                timeinfo.tm_min,
+                timeinfo.tm_sec);
+      }
+    } else {
+      sprintf(filename, "/image_%06d.jpg", image_counter);
+      image_counter++;
+    }
+    
+    // Save frame to buffer
+    size_t out_len = 0;
+    uint8_t* out_buf = NULL;
+    int jpeg_quality = 30;
+    esp_err_t ret = frame2jpg(fb, jpeg_quality, &out_buf, &out_len);
+    int stat = -1;
+    if (ret == false) {
+      Serial.println("JPEG conversion failed");
+    } else {
+      if (check_display_is_pressed()) {
+        Serial.println("display is touched");
+        lv_coord_t x, y;
+        get_display_touch_xy(&x, &y);
+        Serial.println(x);
+        Serial.println(y);
+
+        if(y < 120) {
+          tft.drawSpot(x, y, 10, TFT_GREEN, TFT_GREEN);
+          // Save photo to file
+          if (is_sd_card_ready && writeFile(SD, filename, out_buf, out_len) >= 0) {
+            Serial.printf("Saved picture: %s\n", filename);
+            if (upload_file(filename) == 0) {
+              String llm_response = call_llm_server(filename);
+              if(llm_response != "") {
+                // tft.drawString(llm_response, 10, SCREEN_HEIGHT / 2);
+                webSocket.broadcastTXT(llm_response);
+                transform_json2command(llm_response.c_str());
+                delay(2000);
+              }
+            }
+          }
+        } else {
+          tft.drawSpot(x, y, 10, TFT_RED, TFT_RED);
+          // tft.drawString("Stop", 10, SCREEN_HEIGHT / 2);
+          webSocket.broadcastTXT("{\"volume\": \"0\", \"degree\": \"0\", \"type\": \"stop\"}");
+          serial_port.write(close_water, sizeof(close_water));
+          delay(500);
+        }
+
+      }
+      free(out_buf);
+      stat = 0;
+    }
+
+    display_image(fb);
+
+    esp_camera_fb_return(fb);
+    return stat;
+  }
+
+  return -1;
+}
+
+
+// ----------------------------------------------------------------------
+
+// WebSocket event handler
+void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
+  if (type == WStype_CONNECTED) {
+    Serial.println("Client connected");
+  }
+
+  if (type == WStype_TEXT) {
+    Serial.printf("Received data: %s\n", payload);
+    JsonDocument doc;
+    deserializeJson(doc, payload);
+    const char* type = doc["type"];
+    Serial.printf("Action: %s\n", type); 
+    if (strcmp(type, "start") == 0) {
+      transform_json2command((char*)(payload));
+      webSocket.broadcastTXT(payload);
+    } else {
+      serial_port.write(close_water, sizeof(close_water));
+      webSocket.broadcastTXT("{\"volume\": \"0\", \"degree\": \"0\", \"type\": \"stop\"}");
+    }
+  }
+}
+
+void init_websocket() {
+  // WebSocket event handler
+  webSocket.onEvent(onWebSocketEvent);
+  webSocket.begin();
+
+  // Serve HTML page
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send_P(200, "text/html", htmlPage);
+  });
+  server.begin();
+}
+
+// --------------------------------------------------------------------------------
+
+
 void setup() {
   // Setup Serial
   Serial.begin(115200);
@@ -684,6 +807,8 @@ void setup() {
   // TEST WIFI
   setup_wifi();
 
+  init_websocket();
+
   // TIME
   if (setup_time() < 0) {
     Serial.println("Setup Global Time Failed, use image_counter!");
@@ -699,6 +824,7 @@ void setup() {
 
 void loop() {
   // make an action
+  webSocket.loop();
   get_image_stream();
   delay(20);
 }
