@@ -1,17 +1,15 @@
 #include <WiFi.h>
 #include <time.h>
 #include <HTTPClient.h>
-#include <mbedtls/md.h>
-#include <mbedtls/base64.h>
+
 #include <FS.h>
 #include <SD.h>
 #include <SPI.h>
 #include <esp_camera.h>
-#include <TFT_eSPI.h>
-#include <lvgl.h>
-#include <ArduinoJson.h>
+
+#include <ArduinoJson.h>  // for json style text
 #include <HardwareSerial.h>  // xiao serial port use
-#include <Wire.h>  // xiao connect with display by touch action
+
 // for web socket display on pad, mobile or PC
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
@@ -20,19 +18,11 @@
 // Select camera model
 #define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM Do not forget to setup PSRAM as "OPI PSRAM" in "Tools"
 #include "camera_pins.h"
-
-// need to modify ----------------------------------------
-// Enter your WiFi credentials
-const char *SSID = "";
-const char *PWD = "";
-const char* ACCESS_KEY = "";
-const char* SECRET_KEY = "";
-const char* BUCKET_NAME = "";
-const char* MINIO_URL = "";  // no need / at the end 
-const char* SERVICE_ADDRESS = "";  // no need / at the end
-const char* LLM_TYPE = "";
-const char* MODEL = "";
-// ---------------------------------------------------------
+#include "config.h"
+#include "html_page.h"
+#include "file_util.h"
+#include "screen.h"
+#include "s3_util.h"
 
 const int PIN_XIAO_SD_CARD  = D2;  // sd card on display, if use the sd card slot on XIAO change to 21
 const uint8_t unlock[5] = {0x69, 0x01, 0x2d, 0x32, 0x60};
@@ -45,336 +35,12 @@ bool is_global_time_ready = false;
 
 int image_counter = 0;
 
+// serial port use d6 d7
 HardwareSerial serial_port(0);
-
-const char htmlPage[] PROGMEM = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-  <title>SmartSip</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; }
-    .container { display: flex; flex-direction: column; gap: 20px; }
-    .display, .controls { border: 1px solid #ccc; padding: 20px; border-radius: 10px; }
-    .display { text-align: center; }
-    .display img { width: 100%; height: auto; max-height: 200px; }
-    .controls { display: flex; flex-direction: column; gap: 15px; }
-    .controls label { display: flex; justify-content: space-between; }
-    .progress-container { width: 100%; background-color: #ddd; border-radius: 5px; }
-    .progress-bar { width: 0; height: 20px; background-color: #4CAF50; border-radius: 5px; }
-    button { width: 100%; padding: 10px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; }
-    button:active { background-color: #ddd; }
-    @media (min-width: 768px) {
-      .container { flex-direction: row; gap: 30px; }
-      .display, .controls { width: 100%; }
-    }
-  </style>
-</head>
-<body>
-  <h2>SmartSip</h2>
-  <div class="container">
-    <div class="display">
-      <h3>Current Status</h3>
-      <p>Water Temperature(C): <span id="tempDisplay">20</span></p>
-      <p>Water Volume(ml): <span id="volumeDisplay">150</span></p>
-      <p>Description: <span id="descriptionDisplay">This is the SmartSip</span></p>
-      <img id="waterImage" src="https://via.placeholder.com/240x240" alt="Default Image">
-    </div>
-
-    <div class="controls">
-      <h3>Control Panel</h3>
-      <label>Water Volume (100-500ml): <span id="volumeValue">150</span></label>
-      <input type="range" id="volume" min="100" max="500" value="150" oninput="updateVolume(this.value)">
-      
-      <label>Water Temperature (20-100C): <span id="tempValue">20</span></label>
-      <input type="range" id="temperature" min="20" max="100" value="20" oninput="updateTemp(this.value)">
-
-      <button onclick="sendCommand('start')">Add Water</button>
-      <button onclick="sendCommand('stop')">Stop</button>
-
-    </div>
-  </div>
-)rawliteral"
-R"rawliteral(
-  <script>
-    const socket = new WebSocket("ws://" + location.hostname + ":81/");
-    socket.onmessage = function(event) {
-      console.log(event.data);
-      const message = JSON.parse(event.data);
-      document.getElementById("tempDisplay").textContent = message['degree'];
-      document.getElementById("volumeDisplay").textContent = message['volume'];
-      document.getElementById("descriptionDisplay").textContent = message['type'];
-    };
-    function updateVolume(value) {
-      document.getElementById("volumeValue").textContent = value;
-    }
-    function updateTemp(value) {
-      document.getElementById("tempValue").textContent = value;
-    }
-    function sendCommand(command) {
-      const volume = document.getElementById("volume").value;
-      const temp = document.getElementById("temperature").value;
-      const data = { type: command, volume: volume, degree: temp };
-      socket.send(JSON.stringify(data));
-    }
-  </script>
-</body>
-</html>
-)rawliteral";
 
 // Set up server and WebSocket
 AsyncWebServer server(80);
 WebSocketsServer webSocket(81);
-
-// display
-#define TOUCH_INT D7
-#define SCREEN_WIDTH 240
-#define SCREEN_HEIGHT 240
-#define CHSC6X_READ_POINT_LEN 5
-#define CHSC6X_I2C_ID 0x2e
-
-// 0,1,2,3  -> 0, 90, 180, 270 clockwise
-// when typeC port on XIAO is to the top
-// set rotation to 1
-// |-----------------------------------------|
-// |(WIDTH_MAX, Height_MAX)------------------|
-// |-----------------------------------------|
-// |-----------------------------------------|
-// |-----------------------------------------|
-// |-----------------------------------------|
-// |------------------(WIDTH_MIN, HEIGHT_MIN)|
-
-uint8_t screen_rotation = 1;
-
-TFT_eSPI tft = TFT_eSPI();
-
-void setup_display() {
-  pinMode(TOUCH_INT, INPUT_PULLUP);
-  Wire.begin();
-  tft.init();
-  tft.setRotation(screen_rotation);
-  tft.fillScreen(TFT_WHITE);
-}
-
-void display_image(camera_fb_t *fb) {
-  uint8_t* buf = fb->buf;
-  uint32_t len = fb->len;
-  tft.startWrite();
-  tft.setAddrWindow(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  tft.pushColors(buf, len);
-  tft.endWrite();
-}
-
-bool check_display_is_pressed(void) {
-    if(digitalRead(TOUCH_INT) != LOW) {
-        delay(1);
-        if(digitalRead(TOUCH_INT) != LOW)
-        return false;
-    }
-    return true;
-}
-
-void convert_display_xy(uint8_t *x, uint8_t *y) {
-    uint8_t x_tmp = *x, y_tmp = *y, _end = 0;
-    for(int i=1; i<=screen_rotation; i++){
-        x_tmp = *x;
-        y_tmp = *y;
-        _end = (i % 2) ? SCREEN_WIDTH : SCREEN_HEIGHT;
-        *x = y_tmp;
-        *y = _end - x_tmp;
-    }
-}
-
-void get_display_touch_xy(lv_coord_t * x, lv_coord_t * y){
-    uint8_t temp[CHSC6X_READ_POINT_LEN] = {0};
-    uint8_t read_len = Wire.requestFrom(CHSC6X_I2C_ID, CHSC6X_READ_POINT_LEN);
-    if(read_len == CHSC6X_READ_POINT_LEN){
-        Wire.readBytes(temp, read_len);
-        if (temp[0] == 0x01) {
-        convert_display_xy(&temp[2], &temp[4]);
-        *x = temp[2];
-        *y = temp[4];
-        }
-    }
-}
-
-// --------------------------------------------------------------------------------
-// SD Card
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-    Serial.printf("Listing directory: %s\n", dirname);
-
-    File root = fs.open(dirname);
-    if(!root){
-        Serial.println("Failed to open directory");
-        return;
-    }
-    if(!root.isDirectory()){
-        Serial.println("Not a directory");
-        return;
-    }
-
-    File file = root.openNextFile();
-    while(file){
-        if(file.isDirectory()){
-            Serial.print("  DIR : ");
-            Serial.println(file.name());
-            if(levels){
-                listDir(fs, file.path(), levels -1);
-            }
-        } else {
-            Serial.print("  FILE: ");
-            Serial.print(file.name());
-            Serial.print("  SIZE: ");
-            Serial.println(file.size());
-        }
-        file = root.openNextFile();
-    }
-}
-
-void createDir(fs::FS &fs, const char * path){
-    Serial.printf("Creating Dir: %s\n", path);
-    if(fs.mkdir(path)){
-        Serial.println("Dir created");
-    } else {
-        Serial.println("mkdir failed");
-    }
-}
-
-void removeDir(fs::FS &fs, const char * path){
-    Serial.printf("Removing Dir: %s\n", path);
-    if(fs.rmdir(path)){
-        Serial.println("Dir removed");
-    } else {
-        Serial.println("rmdir failed");
-    }
-}
-
-void readFile(fs::FS &fs, const char * path){
-    Serial.printf("Reading file: %s\n", path);
-
-    File file = fs.open(path);
-    if(!file){
-        Serial.println("Failed to open file for reading");
-        return;
-    }
-
-    Serial.print("Read from file: ");
-    while(file.available()){
-        Serial.write(file.read());
-    }
-    file.close();
-}
-
-void writeMessage(fs::FS &fs, const char * path, const char * message){
-    Serial.printf("Writing file: %s\n", path);
-
-    File file = fs.open(path, FILE_WRITE);
-    if(!file){
-        Serial.println("Failed to open file for writing");
-        return;
-    }
-    if(file.print(message)){
-        Serial.println("File written");
-    } else {
-        Serial.println("Write failed");
-    }
-    file.close();
-}
-
-void appendFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf("Appending to file: %s\n", path);
-
-    File file = fs.open(path, FILE_APPEND);
-    if(!file){
-        Serial.println("Failed to open file for appending");
-        return;
-    }
-    if(file.print(message)){
-        Serial.println("Message appended");
-    } else {
-        Serial.println("Append failed");
-    }
-    file.close();
-}
-
-void renameFile(fs::FS &fs, const char * path1, const char * path2){
-    Serial.printf("Renaming file %s to %s\n", path1, path2);
-    if (fs.rename(path1, path2)) {
-        Serial.println("File renamed");
-    } else {
-        Serial.println("Rename failed");
-    }
-}
-
-void deleteFile(fs::FS &fs, const char * path){
-    Serial.printf("Deleting file: %s\n", path);
-    if(fs.remove(path)){
-        Serial.println("File deleted");
-    } else {
-        Serial.println("Delete failed");
-    }
-}
-
-void testFileIO(fs::FS &fs, const char * path){
-    File file = fs.open(path);
-    static uint8_t buf[512];
-    size_t len = 0;
-    uint32_t start = millis();
-    uint32_t end = start;
-    if(file){
-        len = file.size();
-        size_t flen = len;
-        start = millis();
-        while(len){
-            size_t toRead = len;
-            if(toRead > 512){
-                toRead = 512;
-            }
-            file.read(buf, toRead);
-            len -= toRead;
-        }
-        end = millis() - start;
-        Serial.printf("%u bytes read for %u ms\n", flen, end);
-        file.close();
-    } else {
-        Serial.println("Failed to open file for reading");
-    }
-
-
-    file = fs.open(path, FILE_WRITE);
-    if(!file){
-        Serial.println("Failed to open file for writing");
-        return;
-    }
-
-    size_t i;
-    start = millis();
-    for(i=0; i<2048; i++){
-        file.write(buf, 512);
-    }
-    end = millis() - start;
-    Serial.printf("%u bytes written for %u ms\n", 2048 * 512, end);
-    file.close();
-}
-
-int writeFile(fs::FS &fs, const char * path, uint8_t * data, size_t len){
-    Serial.printf("Writing file: %s\n", path);
-
-    File file = fs.open(path, FILE_WRITE);
-    if(!file){
-        Serial.println("Failed to open file for writing");
-        return -1;
-    }
-    int stat = -1;
-    if(file.write(data, len) == len){
-        Serial.println("File written");
-        stat = 0;
-    } else {
-        Serial.println("Write failed");
-    }
-    file.close();
-    return stat;
-}
 
 int setup_sdcard() {
   if(!SD.begin(PIN_XIAO_SD_CARD)){
@@ -404,46 +70,9 @@ int setup_sdcard() {
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
   Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
   Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
-
-  // test sd card utils
-  // listDir(SD, "/", 0);
-  // createDir(SD, "/mydir");
-  // listDir(SD, "/", 0);
-  // removeDir(SD, "/mydir");
-  // listDir(SD, "/", 2);
-  // writeMessage(SD, "/hello.txt", "Hello ");
-  // appendFile(SD, "/hello.txt", "World!\n");
   // readFile(SD, "/hello.txt");
-  // deleteFile(SD, "/foo.txt");
-  // renameFile(SD, "/hello.txt", "/foo.txt");
-  // readFile(SD, "/foo.txt");
-  // testFileIO(SD, "/test.txt");
   is_sd_card_ready = true;
   return 0;
-}
-
-// -----------------------------------------------------------------------------------
-String get_date_rf2616_format() {
-  time_t now;
-  struct tm timeinfo;
-  char buf[64];
-
-  time(&now);
-  gmtime_r(&now, &timeinfo);
-  strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &timeinfo);
-  
-  return String(buf);
-}
-
-// ---------------------------------------------------------------------------------
-// LED
-void flash_led() {
-  for (int i = 0; i < 2; i++) {
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(200);
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(200); 
-  }
 }
 
 // ---------------------------------------------------------------------------------
@@ -485,65 +114,6 @@ int setup_time() {
                 timeinfo.tm_sec);
   is_global_time_ready = true;
   return 0;
-}
-
-// --------------------------------------------------------------------------
-// S3 upload
-String generate_signature(String method, String date, String object_name) {
-    String stringToSign = method + "\n\n" + "image/jpeg" + "\n" + date + "\n" + "/" + BUCKET_NAME + object_name;
-    unsigned char hmacResult[20];  // SHA1 output 160bit（20 Byte）
-    mbedtls_md_context_t ctx;
-    const mbedtls_md_info_t* info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
-    mbedtls_md_init(&ctx);
-    mbedtls_md_setup(&ctx, info, 1);
-    mbedtls_md_hmac_starts(&ctx, (const unsigned char*)SECRET_KEY, strlen(SECRET_KEY));
-    mbedtls_md_hmac_update(&ctx, (const unsigned char*)stringToSign.c_str(), stringToSign.length());
-    mbedtls_md_hmac_finish(&ctx, hmacResult);
-    mbedtls_md_free(&ctx);
-
-    char base64Result[64];
-    size_t outlen;
-    mbedtls_base64_encode((unsigned char*)base64Result, 64, &outlen, hmacResult, 20);
-
-    return String(base64Result);
-}
-
-int upload_file(const char* file_path) {
-  int status = -1;
-  if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http;
-      String url = String(MINIO_URL) + "/" + String(BUCKET_NAME) + String(file_path);
-      http.begin(url);
-
-      String date = get_date_rf2616_format();
-      String signature = generate_signature("PUT", date, String(file_path));
-
-      http.addHeader("Authorization", "AWS " + String(ACCESS_KEY) + ":" + signature);
-      http.addHeader("Date", date);
-      http.addHeader("Content-Type", "image/jpeg");
-
-      File file = SD.open(file_path, "r");
-      if (!file) {
-          Serial.println("Failed to open file for reading");
-          return status;
-      }
-
-      int httpResponseCode = http.sendRequest("PUT", &file, file.size());
-      if (httpResponseCode > 0) {
-          String response = http.getString();
-          Serial.println("Response: " + response);
-          status = 0;
-      } else {
-          Serial.println("Error on sending file: " + String(httpResponseCode));
-      }
-
-      file.close();
-      http.end();
-  } else {
-      Serial.println("WiFi not connected");
-  }
-
-  return status;
 }
 
 // -------------------------------------------------------------------
@@ -775,7 +345,7 @@ void init_websocket() {
 
   // Serve HTML page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send_P(200, "text/html", htmlPage);
+    request->send_P(200, "text/html", HTML_PAGE);
   });
   server.begin();
 }
@@ -823,7 +393,7 @@ void setup() {
 }
 
 void loop() {
-  // make an action
+  // make an loop action
   webSocket.loop();
   get_image_stream();
   delay(20);
