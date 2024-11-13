@@ -68,6 +68,30 @@ Looks like ollama llava is not working for this Scenario.
 * [x] 5. {"volume": 0,"degree": 0,"type": "not capable of receiving water"}
 * [x] 6. {"volume": 0,"degree": 0,"type": "not capable of receiving water"}
 
+### Ollama llama3.2-vision
+
+llama3.2-vision gives some mistakes, but better than llava. It could gives acurrate type but the volumn and degree is not correct.
+
+* [x] 1. {"volume": 250, "degree": 95, "type": "cup"}
+* [ ] 2. {"volume": 500,"degree": 95,"type": "tea pot"}
+* [x] 3. {"volume": 250,"degree": 95,"type": "cup"}
+* [ ] 4. {"volume": 500,"degree": 80,"type": "Plastic Bottle"}
+* [ ] 5. {"volume": 250,"degree": 95,"type": "cup"}
+* [ ] 6. {"volume": 250,"degree": 95,"type": "Milk Carton"}
+
+<img width="586" alt="WXWorkLocal_20241113141450" src="https://github.com/user-attachments/assets/519f9cac-a061-41bf-a20d-cec7f839ae09">
+
+### Ollama llama3.2-vision:90b
+
+llama3.2-vision 90b gives more mistakes than 11b, and takes more than 6seconds to get the response on RTX4090.
+
+* [ ] 1. {"volume": 0,"degree": 0,"type": "No container"}
+* [x] 2. {"volume": 0,"degree": 0,"type": "No container"}
+* [x] 3. {"volume": 250,"degree": 95,"type": "cup"}
+* [x] 4. {"volume": 0,"degree": 0,"type": "No container"}
+* [x] 5. {"volume": 0,"degree": 0,"type": "No container"}
+* [x] 6. {"volume": 0,"degree": 0,"type": "not capable of receiving water"}
+
 ### Doubao
 
 Bytedance Doubao is not working for this Scenario. And gives that it could not recognize the volume of the container.
