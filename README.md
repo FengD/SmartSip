@@ -5,9 +5,10 @@
 <p align="center">
 <a href="README.md"><img src="https://img.shields.io/badge/document-English-blue.svg" alt="EN doc"></a>
 <a href="docs/README_CN.md"><img src="https://img.shields.io/badge/文档-中文版-blue.svg" alt="CN doc"></a>
-<a href="docs/README-backend.md"><img src="https://img.shields.io/badge/document-BackendDoc-blue.svg" alt="Backend doc"></a>
-<a href="docs/README-esp32.md"><img src="https://img.shields.io/badge/document-DeviceDoc-blue.svg" alt="Device doc"></a>
-<a href="docs/README-LLM-test-report.md"><img src="https://img.shields.io/badge/document-LLMProviderTestReport-blue.svg" alt="LLM doc"></a>
+<a href="docs/README-backend.md"><img src="https://img.shields.io/badge/document-BackendDoc-green.svg" alt="Backend doc"></a>
+<a href="docs/README-esp32.md"><img src="https://img.shields.io/badge/document-DeviceDoc-green.svg" alt="Device doc"></a>
+<a href="docs/README-LLM-test-report.md"><img src="https://img.shields.io/badge/document-LLMProviderTestReport-green.svg" alt="LLM doc"></a>
+<a href="docs/README_hardware.md"><img src="https://img.shields.io/badge/document-HardwareDoc-green.svg" alt="LLM doc"></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
@@ -45,3 +46,6 @@ Sort by joining time
 
 * [FengD](https://github.com/FengD)
 * [gong-333](https://github.com/gong-333)
+
+# Supporter
+* [miaojusky](https://github.com/miaojusky)
