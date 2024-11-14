@@ -15,6 +15,8 @@
 #include <ESPAsyncWebServer.h>
 #include <WebSocketsServer.h>
 
+#include <QRCodeGenerator.h>
+
 // Select camera model
 #define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM Do not forget to setup PSRAM as "OPI PSRAM" in "Tools"
 #include "camera_pins.h"
@@ -41,6 +43,12 @@ HardwareSerial serial_port(0);
 // Set up server and WebSocket
 AsyncWebServer server(80);
 WebSocketsServer webSocket(81);
+
+// The structure to manage the QR code
+QRCode qrcode;
+// Allocate a chunk of memory to store the QR code
+uint8_t *qrcodeBytes;
+String wifi;
 
 int setup_sdcard() {
   if(!SD.begin(PIN_XIAO_SD_CARD)){
@@ -88,6 +96,8 @@ void setup_wifi() {
   }
   Serial.print("Setup Wifi Success! Wifi connected with IP: ");
   Serial.println(WiFi.localIP());
+  wifi = String("http://") + WiFi.localIP().toString().c_str();
+  qrcode_initText(&qrcode, qrcodeBytes, 3, ECC_LOW, wifi.c_str());
   is_wifi_ready = true;
 }
 
@@ -353,7 +363,10 @@ void init_websocket() {
 // --------------------------------------------------------------------------------
 
 
+
 void setup() {
+  qrcodeBytes = (uint8_t*)malloc(qrcode_getBufferSize(3) * sizeof(uint8_t));
+
   // Setup Serial
   Serial.begin(115200);
   Serial.setDebugOutput(true);
@@ -395,6 +408,18 @@ void setup() {
 void loop() {
   // make an loop action
   webSocket.loop();
+  for (uint8_t y = 0; y < qrcode.size; y++) {
+    for (uint8_t x = 0; x < qrcode.size; x++) {
+        uint16_t color;
+        if (qrcode_getModule(&qrcode, x, y)) {
+          color = TFT_BLACK;
+        } else {
+          color = TFT_WHITE;
+        }
+        tft.drawPixel(20 + y, 110 + x, color);
+    }
+  }
+  tft.drawString(wifi.c_str(), 50, SCREEN_HEIGHT / 2);
   get_image_stream();
   delay(20);
 }
