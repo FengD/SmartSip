@@ -3,7 +3,7 @@
 The code is in the `smartsip` folder. Open it with Arduino.
 
 Do not forget to change the constant to yours.
-
+create a file named `config.cpp`, include `config.h` and gives the info below.
 
 ``` c
 const char *SSID = "";
@@ -42,3 +42,6 @@ const char* MODEL = "gpt-4o";  // gpt-4o etc for openai, llava for ollama
      * `TFT_eSPI -> 2.5.43` (should use the version of Seeed: https://github.com/Seeed-Projects/SeeedStudio_TFT_eSPI )
      * follow this link to test the display https://wiki.seeedstudio.com/get_start_round_display/ especially the `lv_conf.h`
      * `ArduinoJson -> 7.2.0` (for json use)
+     * `Async TCP -> 3.2.14` (by Me-No-Dev)t
+     * `ESP Async WebServer -> 3.3.22` (by Me-No-Dev)
+     * `WebSockets -> 2.6.1`(by Markus Sattler)
