@@ -16,6 +16,11 @@
 
 * We open all the documentation and source code of the project.
 
+# Contribution
+* [x] Tests the LLM in `Fetch water` Scenario, it seems that expect gpt-4o, most of the LLM cannot give a reasonable response.
+* [x] Gives a low cost intelligent dispenser prototype.
+* [x] The detection part can also be used as a part of a robot for home or restaurant use. As a data collection edge device with no sensitive privacy data probleme.  
+
 # Demo
 
 * demo video
