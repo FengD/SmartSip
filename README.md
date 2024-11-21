@@ -32,9 +32,11 @@
 
 # Highlight Functionalities
 
-1. `One touch` and all automatic. (v0.1)
-2. `LLM support`. Analysis the type of the container and gives the volume and temperature of the water needed. (v0.1)
-3. `Wireless control by mobile`.(v1.0)
+* [x] 1. `One touch` and all automatic. (v0.1)
+* [x] 2. `LLM support`. Analysis the type of the container and gives the volume and temperature of the water needed. (v0.1)
+* [x] 3. `Wireless control by mobile`.(v0.1)
+* [ ] 4. `Customize dispenser setup` by face recognization.(v1.0)
+* [ ] 5. `LLM Edge inference`. Infer on a mobile.(v1.0)
 
 # Project
 * `docs`: user guide and technical reports [docs](https://github.com/FengD/SmartSip/tree/main/docs)
