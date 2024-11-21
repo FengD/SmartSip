@@ -16,7 +16,7 @@
 
 * We open all the documentation and source code of the project.
 
-# Contribution
+# Contributions
 * [x] Tests the LLM in `Fetch water` Scenario, it seems that expect gpt-4o, most of the LLM cannot give a reasonable response.
 * [x] Gives a low cost intelligent dispenser prototype.
 * [x] The detection part can also be used as a part of a robot for home or restaurant use. As a data collection edge device with no sensitive privacy data probleme.  
@@ -41,7 +41,7 @@
 * `smartsip`: arduino project [README-esp32](https://github.com/FengD/SmartSip/blob/main/docs/README-esp32.md)
 * `backend`: backend project [README-backend](https://github.com/FengD/SmartSip/blob/main/docs/README-backend.md)
 * `Certain LLM Provider test report`: [README-LLM-test-report](https://github.com/FengD/SmartSip/blob/main/docs/README-LLM-test-report.md)
-* `hardware`: [v0.1](https://github.com/FengD/SmartSip/blob/main/docs/README-hardware.md), [v1.0]()
+* `hardware`: [v0.1](https://github.com/FengD/SmartSip/blob/main/docs/README_hardware.md), [v1.0]()
 
 # Thanks
 
