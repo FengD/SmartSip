@@ -25,10 +25,14 @@
 
 * demo video
 
-* data: we provide the images which were tested by us.
+* dataset: we provide the images which were tested by us.
   ![image_20241116_141107-imageonline co-merged-imageonline co-merged](https://github.com/user-attachments/assets/cf595d52-b53a-471d-80e4-1062a065b541)
 
 * interaction diagram
+
+* Body video: the body of SmartSip.
+  ![dispenser](https://github.com/user-attachments/assets/6f2fcc00-2f00-489c-bc50-c4c8b3c69144)
+
 
 # Highlight Functionalities
 
