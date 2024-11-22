@@ -29,7 +29,7 @@
   ![image_20241116_141107-imageonline co-merged-imageonline co-merged](https://github.com/user-attachments/assets/cf595d52-b53a-471d-80e4-1062a065b541)
 
 * interaction diagram
-  ![clipbord_1732270981019](https://github.com/user-attachments/assets/a14a5af8-0394-4d8e-abcc-30a0791db24f)
+  ![clipbord_1732271310742](https://github.com/user-attachments/assets/61f4362f-f0ef-499a-83b2-2b6394251562)
 
 
 * Body video: the body of SmartSip.
