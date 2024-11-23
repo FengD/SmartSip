@@ -47,3 +47,4 @@ const char* MODEL = "gpt-4o";  // gpt-4o etc for openai, llava for ollama
      * `WebSockets -> 2.6.1`(by Markus Sattler)
      * QRcode_eSPI -> 2.0.0 (by Ruslan Baybekow and Jose)
      * QRCodeGenerator -> 0.0.1 (by Felix Erdmann)
+     * base64 -> 1.3.0 (by Densaugeo)
