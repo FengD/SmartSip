@@ -45,3 +45,5 @@ const char* MODEL = "gpt-4o";  // gpt-4o etc for openai, llava for ollama
      * `Async TCP -> 3.2.14` (by Me-No-Dev)t
      * `ESP Async WebServer -> 3.3.22` (by Me-No-Dev)
      * `WebSockets -> 2.6.1`(by Markus Sattler)
+     * QRcode_eSPI -> 2.0.0 (by Ruslan Baybekow and Jose)
+     * QRCodeGenerator -> 0.0.1 (by Felix Erdmann)
