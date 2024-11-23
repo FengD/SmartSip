@@ -35,6 +35,10 @@
 * Body video: the body of SmartSip.
   ![dispenser](https://github.com/user-attachments/assets/6f2fcc00-2f00-489c-bc50-c4c8b3c69144)
 
+* Mobiel Control:
+  <img width="662" alt="Screenshot 2024-11-23 at 11 47 54" src="https://github.com/user-attachments/assets/7f1d6ced-6293-4f61-affe-9c72395ea8d9">
+
+
 
 # Highlight Functionalities
 
