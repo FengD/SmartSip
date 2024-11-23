@@ -17,6 +17,8 @@
 
 #include <QRCodeGenerator.h>
 
+#include <base64.hpp>
+
 // Select camera model
 #define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM Do not forget to setup PSRAM as "OPI PSRAM" in "Tools"
 #include "camera_pins.h"
@@ -294,8 +296,14 @@ int get_image_stream() {
             if (upload_file(filename) == 0) {
               String llm_response = call_llm_server(filename);
               if(llm_response != "") {
-                // tft.drawString(llm_response, 10, SCREEN_HEIGHT / 2);
                 webSocket.broadcastTXT(llm_response);
+
+                int out_img_base64_len = encode_base64_length(out_len);
+                unsigned char out_img_base64[out_img_base64_len];
+                encode_base64((unsigned char *)out_buf, out_len, out_img_base64);
+                String image_json = String("{\"image\": \"") + (char*)out_img_base64 + "\"}";
+                webSocket.broadcastTXT(image_json);
+                
                 transform_json2command(llm_response.c_str());
                 delay(2000);
               }
@@ -303,8 +311,7 @@ int get_image_stream() {
           }
         } else {
           tft.drawSpot(x, y, 10, TFT_RED, TFT_RED);
-          // tft.drawString("Stop", 10, SCREEN_HEIGHT / 2);
-          webSocket.broadcastTXT("{\"volume\": \"0\", \"degree\": \"0\", \"type\": \"stop\"}");
+          webSocket.broadcastTXT("{\"volume\": \"0\", \"degree\": \"0\", \"type\": \"stop\", \"image\": \"\"}");
           serial_port.write(close_water, sizeof(close_water));
           delay(500);
         }
@@ -403,11 +410,7 @@ void setup() {
     Serial.println("Retry Setup CAMERA in 1 second!");
     delay(1000);
   }
-}
 
-void loop() {
-  // make an loop action
-  webSocket.loop();
   for (uint8_t y = 0; y < qrcode.size; y++) {
     for (uint8_t x = 0; x < qrcode.size; x++) {
         uint16_t color;
@@ -416,10 +419,15 @@ void loop() {
         } else {
           color = TFT_WHITE;
         }
-        tft.drawPixel(20 + y, 110 + x, color);
+        tft.drawPixel(SCREEN_WIDTH / 2 - 12 + y, SCREEN_HEIGHT - 30 + x, color);
     }
   }
-  tft.drawString(wifi.c_str(), 50, SCREEN_HEIGHT / 2);
+  tft.drawString(wifi.c_str(), 60, SCREEN_HEIGHT - 40);
+}
+
+void loop() {
+  // make an loop action
+  webSocket.loop();
   get_image_stream();
   delay(20);
 }

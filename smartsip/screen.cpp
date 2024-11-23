@@ -14,8 +14,8 @@ void display_image(camera_fb_t *fb) {
   uint8_t* buf = fb->buf;
   uint32_t len = fb->len;
   tft.startWrite();
-  tft.setAddrWindow(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  tft.pushColors(buf, len);
+  tft.setAddrWindow(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 6 * 5);
+  tft.pushColors(buf, len / 6 * 5);
   tft.endWrite();
 }
 

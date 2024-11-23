@@ -24,7 +24,7 @@
 // |-----------------------------------------|
 // |------------------(WIDTH_MIN, HEIGHT_MIN)|
 
-const uint8_t SCREEN_ROTATION = 1;
+const uint8_t SCREEN_ROTATION = 0;
 
 extern TFT_eSPI tft;
 

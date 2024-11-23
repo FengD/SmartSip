@@ -12,7 +12,7 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
     .container { display: flex; flex-direction: column; gap: 20px; }
     .display, .controls { border: 1px solid #ccc; padding: 20px; border-radius: 10px; }
     .display { text-align: left; }
-    .display img { width: 100%; height: auto; max-height: 200px; }
+    .display img { width: 100%; height: auto; max-width: 200px; max-height: 200px; }
     .controls { display: flex; flex-direction: column; gap: 15px; }
     .controls label { display: flex; justify-content: space-between; }
     .progress-container { width: 100%; background-color: #ddd; border-radius: 5px; }
@@ -54,11 +54,23 @@ R"rawliteral(
   <script>
     const socket = new WebSocket("ws://" + location.hostname + ":81/");
     socket.onmessage = function(event) {
-      console.log(event.data);
       const message = JSON.parse(event.data);
-      document.getElementById("tempDisplay").textContent = message['degree'];
-      document.getElementById("volumeDisplay").textContent = message['volume'];
-      document.getElementById("descriptionDisplay").textContent = message['type'];
+      if(typeof message['degree'] === 'string' && message['degree'].trim() !== "") {
+        document.getElementById("tempDisplay").textContent = message['degree'];
+      }
+
+      if(typeof message['volume'] === 'string' && message['volume'].trim() !== "") {
+        document.getElementById("volumeDisplay").textContent = message['volume'];
+      }
+
+      if(typeof message['type'] === 'string' && message['type'].trim() !== "") {
+        document.getElementById("descriptionDisplay").textContent = message['type'];
+      }
+      if(typeof message['image'] === 'string' && message['image'].trim() !== "") {
+        document.getElementById("waterImage").src = "data:image/jpeg;base64," + message['image'];
+      } else {
+        document.getElementById("waterImage").src = "https://via.placeholder.com/240x240"
+      }
     };
     function updateVolume(value) {
       document.getElementById("volumeValue").textContent = value;
